@@ -1,13 +1,7 @@
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 import asyncHandler from "../middleware/asyncHandler.js";
 import Image from "../models/Image.js";
 import { getFolderById, updateAncestorSizes } from "../services/folderService.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const uploadDir = path.join(__dirname, "..", "uploads");
+import cloudinary from "../config/cloudinary.js";
 
 export const uploadImage = asyncHandler(async (req, res) => {
   const { folderId } = req.body;
@@ -21,9 +15,27 @@ export const uploadImage = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: "Image required" });
   }
 
+  const uploadResult = await new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: `dobby-ads/${req.user.id}/${folderId}`,
+        resource_type: "image",
+      },
+      (error, result) => {
+        if (error) {
+          return reject(error);
+        }
+        return resolve(result);
+      }
+    );
+
+    stream.end(req.file.buffer);
+  });
+
   const image = await Image.create({
     name: req.file.originalname,
-    filename: req.file.filename,
+    url: uploadResult.secure_url,
+    publicId: uploadResult.public_id,
     size: req.file.size,
     mimetype: req.file.mimetype,
     folderId,
@@ -52,9 +64,8 @@ export const removeImage = asyncHandler(async (req, res) => {
 
   await updateAncestorSizes(image.folderId, req.user.id, -image.size);
 
-  const filePath = path.join(uploadDir, image.filename);
-  if (fs.existsSync(filePath)) {
-    fs.unlinkSync(filePath);
+  if (image.publicId) {
+    await cloudinary.uploader.destroy(image.publicId, { resource_type: "image" });
   }
 
   await image.deleteOne();
@@ -67,6 +78,9 @@ export const downloadImage = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, message: "Image not found" });
   }
 
-  const filePath = path.join(uploadDir, image.filename);
-  res.download(filePath, image.name);
+  if (!image.url) {
+    return res.status(404).json({ success: false, message: "Image URL not found" });
+  }
+
+  res.redirect(image.url);
 });

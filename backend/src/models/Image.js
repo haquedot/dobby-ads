@@ -3,7 +3,9 @@ import mongoose from "mongoose";
 const imageSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
-    filename: { type: String, required: true },
+    filename: { type: String },
+    url: { type: String, required: true },
+    publicId: { type: String, required: true },
     size: { type: Number, required: true },
     mimetype: { type: String, required: true },
     folderId: { type: mongoose.Schema.Types.ObjectId, ref: "Folder", required: true },

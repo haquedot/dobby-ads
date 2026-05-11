@@ -1,13 +1,7 @@
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 import Folder from "../models/Folder.js";
 import Image from "../models/Image.js";
 import { buildFolderPath, ensureNoRootName } from "../utils/buildFolderPath.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const uploadDir = path.join(__dirname, "..", "uploads");
+import cloudinary from "../config/cloudinary.js";
 
 export const getFolderById = async (folderId, userId) => {
   const folder = await Folder.findOne({ _id: folderId, userId });
@@ -100,9 +94,8 @@ export const deleteFolderRecursive = async ({ folderId, userId }) => {
   const images = await Image.find({ userId, folderId: { $in: folderIds } });
 
   for (const image of images) {
-    const filePath = path.join(uploadDir, image.filename);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    if (image.publicId) {
+      await cloudinary.uploader.destroy(image.publicId, { resource_type: "image" });
     }
   }
 
